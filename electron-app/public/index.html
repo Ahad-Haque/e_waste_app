@@ -11,7 +11,7 @@
       http-equiv="X-Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; connect-src 'self' http://127.0.0.1:5000"
     />
-    <title>Electron-Python Integration</title>
+    <title>Electron-Python Integration with Database</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -21,15 +21,28 @@
         margin: 5px;
         padding: 8px;
       }
+      button {
+        cursor: pointer;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
       #result {
         margin-top: 10px;
         font-weight: bold;
+      }
+      #db-status {
+        font-style: italic;
       }
     </style>
   </head>
   <body>
     <h1>Electron-Python Integration</h1>
-    <p>Simple example of Electron frontend communicating with Python backend</p>
+    <p>Example with SQLite database integration</p>
     <p id="info">Checking connection to Python backend...</p>
   </body>
   <script src="./renderer.js"></script>
