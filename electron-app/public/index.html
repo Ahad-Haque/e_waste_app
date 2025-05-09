@@ -1,23 +1,36 @@
-<!-- public\index.html -->
-
+<!-- public/index.html -->
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'"
+      content="default-src 'self'; script-src 'self'; connect-src 'self' http://127.0.0.1:5000"
     />
     <meta
       http-equiv="X-Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'"
+      content="default-src 'self'; script-src 'self'; connect-src 'self' http://127.0.0.1:5000"
     />
-    <title>Hello from Electron renderer!</title>
+    <title>Electron-Python Integration</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+      input, button {
+        margin: 5px;
+        padding: 8px;
+      }
+      #result {
+        margin-top: 10px;
+        font-weight: bold;
+      }
+    </style>
   </head>
   <body>
-    <h1>Hello from Electron renderer!</h1>
-    <p>👋</p>
-    <p id="info"></p>
+    <h1>Electron-Python Integration</h1>
+    <p>Simple example of Electron frontend communicating with Python backend</p>
+    <p id="info">Checking connection to Python backend...</p>
   </body>
   <script src="./renderer.js"></script>
 </html>
