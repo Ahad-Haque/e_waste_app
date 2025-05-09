@@ -19,6 +19,7 @@
         text-align: center;
         max-width: 800px;
         margin: 0 auto;
+        background-color: #f5f5f5;
       }
       h1 {
         color: #333;
@@ -26,29 +27,26 @@
       }
       .camera-container {
         position: relative;
-        width: 400px;
-        height: 300px;
+        width: 500px;
+        height: 375px;
         border: 2px solid #4caf50;
         margin: 20px auto;
         overflow: hidden;
         border-radius: 8px;
+        background-color: #000;
       }
       #camera-view {
         width: 100%;
         height: 100%;
         object-fit: cover;
       }
-      .detection-box {
+      .face-overlay {
         position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 200px;
-        height: 200px;
-        border: 2px dashed #ff0000;
-        box-sizing: border-box;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
         pointer-events: none;
-        border-radius: 4px;
       }
       .controls {
         display: flex;
@@ -76,14 +74,16 @@
       #info {
         margin: 10px 0;
         color: #666;
+        font-style: italic;
       }
       .results {
-        background-color: #f5f5f5;
+        background-color: #fff;
         padding: 15px;
         border-radius: 8px;
         text-align: left;
         max-width: 400px;
         margin: 0 auto;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }
       .result-item {
         margin: 8px 0;
@@ -92,6 +92,7 @@
       }
       .result-label {
         font-weight: bold;
+        color: #333;
       }
       .confidence-bar {
         height: 10px;
@@ -104,6 +105,7 @@
         height: 100%;
         background-color: #4caf50;
         border-radius: 5px;
+        transition: width 0.5s ease-in-out;
       }
     </style>
   </head>
@@ -113,11 +115,11 @@
 
     <div class="camera-container">
       <video id="camera-view" autoplay></video>
-      <div class="detection-box"></div>
+      <!-- The overlay canvas will be added by JavaScript -->
     </div>
 
     <div class="controls">
-      <button id="detect-btn" disabled>Detect Face</button>
+      <button id="detect-btn">Start Live Detection</button>
       <button id="save-btn" disabled>Save Data</button>
       <button id="fetch-btn">Fetch Latest</button>
     </div>

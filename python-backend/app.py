@@ -66,6 +66,9 @@ def detect_face_age_gender(image_data):
         if img is None or img.size == 0:
             return {"gender": "Unknown", "age": 0, "error": "Invalid image data"}
             
+        # Get original dimensions for scaling
+        img_height, img_width = img.shape[:2]
+            
         # Convert to grayscale for face detection
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
@@ -82,30 +85,29 @@ def detect_face_age_gender(image_data):
                 if face.size == 0 or face.shape[0] == 0 or face.shape[1] == 0:
                     continue
                 
-                # Since we're having trouble with the pre-trained models,
-                # let's use a simple heuristic approach for demo purposes
-                
-                # Calculate the average color of the face
-                avg_color = np.mean(face, axis=(0, 1))
-                
                 # Simple heuristic (not accurate, just for demonstration)
-                # In a real implementation, we would use the pre-trained models
-                
-                # Determine gender based on face shape (just a placeholder)
-                # This is NOT accurate and only for demonstration!
                 face_ratio = w / h
                 gender = "Male" if face_ratio > 0.75 else "Female"
                 
-                # For age, we'll use a random value in a reasonable range
-                # This is NOT accurate and only for demonstration!
+                # For age, use a random value in a reasonable range (demo only)
                 age = random.randint(20, 45)
+                
+                # Add face coordinates for frontend display
+                # Convert pixel values to percentage of image dimensions for responsive display
+                face_coords = {
+                    "x": float(x) / img_width,
+                    "y": float(y) / img_height,
+                    "width": float(w) / img_width,
+                    "height": float(h) / img_height
+                }
                 
                 results.append({
                     "gender": gender,
                     "age": age,
-                    "gender_confidence": 60.0,  # Approximate confidence
-                    "age_confidence": 50.0,     # Approximate confidence
-                    "face_confidence": 95.0     # High because we detected a face
+                    "gender_confidence": 60.0,
+                    "age_confidence": 50.0,
+                    "face_confidence": 95.0,
+                    "face_coords": face_coords
                 })
         
         # Return the first face detected (or empty if none)
