@@ -1,7 +1,20 @@
 // public/renderer.js
 
 document.addEventListener("DOMContentLoaded", () => {
+  // DOM elements
   const infoElement = document.getElementById("info");
+  const videoElement = document.getElementById("camera-view");
+  const detectBtn = document.getElementById("detect-btn");
+  const saveBtn = document.getElementById("save-btn");
+  const fetchBtn = document.getElementById("fetch-btn");
+  const genderResult = document.getElementById("gender-result");
+  const ageResult = document.getElementById("age-result");
+  const timestampResult = document.getElementById("timestamp-result");
+  const genderConfidence = document.getElementById("gender-confidence");
+  const ageConfidence = document.getElementById("age-confidence");
+
+  // Current detection results
+  let currentDetection = null;
 
   // Test connection to Python backend
   fetch("http://127.0.0.1:5000/test")
@@ -9,123 +22,145 @@ document.addEventListener("DOMContentLoaded", () => {
     .then((data) => {
       infoElement.textContent = data.message;
       console.log("Backend connection successful:", data);
+      startWebcam();
     })
     .catch((error) => {
-      infoElement.textContent = "Error connecting to Python backend";
+      infoElement.textContent =
+        "Error connecting to Python backend. Make sure it's running!";
       console.error("Backend connection error:", error);
     });
 
-  // Create UI elements for multiplication
-  const container = document.createElement("div");
-
-  const num1Input = document.createElement("input");
-  num1Input.type = "number";
-  num1Input.placeholder = "Enter first number";
-
-  const num2Input = document.createElement("input");
-  num2Input.type = "number";
-  num2Input.placeholder = "Enter second number";
-
-  const calculateButton = document.createElement("button");
-  calculateButton.textContent = "Multiply";
-
-  const resultElement = document.createElement("div");
-  resultElement.id = "result";
-
-  // Create Save and Fetch buttons
-  const saveButton = document.createElement("button");
-  saveButton.textContent = "Save Result";
-  saveButton.style.marginRight = "10px";
-
-  const fetchButton = document.createElement("button");
-  fetchButton.textContent = "Fetch Previous";
-
-  const dbStatusElement = document.createElement("div");
-  dbStatusElement.id = "db-status";
-  dbStatusElement.style.marginTop = "10px";
-  dbStatusElement.style.color = "#666";
-
-  // Add all elements to container
-  container.appendChild(num1Input);
-  container.appendChild(num2Input);
-  container.appendChild(calculateButton);
-  container.appendChild(resultElement);
-
-  // Add DB operation elements
-  const dbContainer = document.createElement("div");
-  dbContainer.style.marginTop = "20px";
-  dbContainer.appendChild(saveButton);
-  dbContainer.appendChild(fetchButton);
-  dbContainer.appendChild(dbStatusElement);
-
-  container.appendChild(dbContainer);
-  document.body.appendChild(container);
-
-  // Keep track of the current result
-  let currentResult = null;
-
-  // Add event listener to the calculate button
-  calculateButton.addEventListener("click", () => {
-    const num1 = parseInt(num1Input.value) || 0;
-    const num2 = parseInt(num2Input.value) || 0;
-
-    fetch("http://127.0.0.1:5000/multiply", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ num1, num2 }),
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        currentResult = data.result;
-        resultElement.textContent = `Result: ${currentResult}`;
+  // Initialize webcam
+  function startWebcam() {
+    navigator.mediaDevices
+      .getUserMedia({ video: true })
+      .then((stream) => {
+        videoElement.srcObject = stream;
+        infoElement.textContent =
+          "Camera is active. Position your face in the square and click 'Detect Face'";
+        detectBtn.disabled = false;
       })
-      .catch((error) => {
-        resultElement.textContent = "Error calculating result";
-        console.error("Calculation error:", error);
+      .catch((err) => {
+        infoElement.textContent = "Error accessing webcam: " + err.message;
+        console.error("Webcam error:", err);
       });
-  });
+  }
 
-  // Add event listener to the save button
-  saveButton.addEventListener("click", () => {
-    if (currentResult === null) {
-      dbStatusElement.textContent = "No result to save. Calculate first.";
+  // Capture current frame from webcam
+  function captureFrame() {
+    const canvas = document.createElement("canvas");
+    canvas.width = videoElement.videoWidth;
+    canvas.height = videoElement.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg");
+  }
+
+  // Detect face, age, and gender
+  detectBtn.addEventListener("click", () => {
+    if (!videoElement.srcObject) {
+      infoElement.textContent = "Camera not ready yet. Please wait...";
       return;
     }
 
-    fetch("http://127.0.0.1:5000/save-result", {
+    infoElement.textContent = "Processing...";
+    const imageData = captureFrame();
+
+    fetch("http://127.0.0.1:5000/detect-face", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ result: currentResult }),
+      body: JSON.stringify({ image: imageData }),
     })
       .then((response) => response.json())
       .then((data) => {
-        dbStatusElement.textContent = `Database: ${data.message}`;
+        if (data.error) {
+          infoElement.textContent = "Detection error: " + data.error;
+          return;
+        }
+
+        currentDetection = data;
+        genderResult.textContent = data.gender;
+        ageResult.textContent = data.age;
+
+        // Update confidence bars
+        const genderConfidenceValue = data.gender_confidence || 0;
+        const ageConfidenceValue = data.age_confidence || 0;
+        genderConfidence.style.width = `${genderConfidenceValue}%`;
+        ageConfidence.style.width = `${ageConfidenceValue}%`;
+
+        timestampResult.textContent = "(not saved yet)";
+        infoElement.textContent =
+          "Face detected! Click 'Save Data' to store this information.";
+        saveBtn.disabled = false;
       })
       .catch((error) => {
-        dbStatusElement.textContent = "Error saving to database";
+        infoElement.textContent = "Error processing image";
+        console.error("Detection error:", error);
+      });
+  });
+
+  // Save detected data
+  saveBtn.addEventListener("click", () => {
+    if (!currentDetection) {
+      infoElement.textContent = "No face data to save. Detect a face first.";
+      return;
+    }
+
+    fetch("http://127.0.0.1:5000/save-face-data", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        gender: currentDetection.gender,
+        age: currentDetection.age,
+      }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        infoElement.textContent = `Data saved successfully!`;
+
+        // Update timestamp with current time (approximate)
+        const now = new Date();
+        timestampResult.textContent = now.toLocaleString();
+      })
+      .catch((error) => {
+        infoElement.textContent = "Error saving to database";
         console.error("Database save error:", error);
       });
   });
 
-  // Add event listener to the fetch button
-  fetchButton.addEventListener("click", () => {
-    fetch("http://127.0.0.1:5000/fetch-result")
+  // Fetch latest saved data
+  fetchBtn.addEventListener("click", () => {
+    fetch("http://127.0.0.1:5000/fetch-latest")
       .then((response) => response.json())
       .then((data) => {
-        if (data.result === "NA") {
-          dbStatusElement.textContent = "Database: No previous result found";
+        if (data.message === "No data found") {
+          infoElement.textContent = "No previous data found in database";
         } else {
-          dbStatusElement.textContent = `Previous result: ${data.result}`;
-          // Optionally update the current result
-          currentResult = data.result;
+          infoElement.textContent = "Latest data retrieved!";
+          genderResult.textContent = data.gender;
+          ageResult.textContent = data.age;
+          timestampResult.textContent = data.timestamp;
+
+          // Reset confidence bars as we don't have confidence for fetched data
+          genderConfidence.style.width = "0%";
+          ageConfidence.style.width = "0%";
+
+          // Update current detection
+          currentDetection = {
+            gender: data.gender,
+            age: data.age,
+          };
+
+          // Enable save button in case user wants to save again
+          saveBtn.disabled = false;
         }
       })
       .catch((error) => {
-        dbStatusElement.textContent = "Error fetching from database";
+        infoElement.textContent = "Error fetching from database";
         console.error("Database fetch error:", error);
       });
   });

@@ -5,45 +5,143 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; connect-src 'self' http://127.0.0.1:5000"
+      content="default-src 'self'; script-src 'self'; connect-src 'self' http://127.0.0.1:5000; img-src 'self' data: blob:"
     />
     <meta
       http-equiv="X-Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; connect-src 'self' http://127.0.0.1:5000"
+      content="default-src 'self'; script-src 'self'; connect-src 'self' http://127.0.0.1:5000; img-src 'self' data: blob:"
     />
-    <title>Electron-Python Integration with Database</title>
+    <title>Face Detection with Age and Gender</title>
     <style>
       body {
         font-family: Arial, sans-serif;
         padding: 20px;
+        text-align: center;
+        max-width: 800px;
+        margin: 0 auto;
       }
-      input, button {
-        margin: 5px;
-        padding: 8px;
+      h1 {
+        color: #333;
+        margin-bottom: 20px;
+      }
+      .camera-container {
+        position: relative;
+        width: 400px;
+        height: 300px;
+        border: 2px solid #4caf50;
+        margin: 20px auto;
+        overflow: hidden;
+        border-radius: 8px;
+      }
+      #camera-view {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .detection-box {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 200px;
+        height: 200px;
+        border: 2px dashed #ff0000;
+        box-sizing: border-box;
+        pointer-events: none;
+        border-radius: 4px;
+      }
+      .controls {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin: 20px 0;
       }
       button {
-        cursor: pointer;
-        background-color: #4CAF50;
+        padding: 10px 15px;
+        font-size: 16px;
+        background-color: #4caf50;
         color: white;
         border: none;
         border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
       }
       button:hover {
         background-color: #45a049;
       }
-      #result {
-        margin-top: 10px;
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      #info {
+        margin: 10px 0;
+        color: #666;
+      }
+      .results {
+        background-color: #f5f5f5;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: left;
+        max-width: 400px;
+        margin: 0 auto;
+      }
+      .result-item {
+        margin: 8px 0;
+        display: flex;
+        justify-content: space-between;
+      }
+      .result-label {
         font-weight: bold;
       }
-      #db-status {
-        font-style: italic;
+      .confidence-bar {
+        height: 10px;
+        background-color: #ddd;
+        border-radius: 5px;
+        margin-top: 5px;
+        overflow: hidden;
+      }
+      .confidence-value {
+        height: 100%;
+        background-color: #4caf50;
+        border-radius: 5px;
       }
     </style>
   </head>
   <body>
-    <h1>Electron-Python Integration</h1>
-    <p>Example with SQLite database integration</p>
-    <p id="info">Checking connection to Python backend...</p>
+    <h1>Face Detection with Age and Gender</h1>
+    <p id="info">Connecting to Python backend...</p>
+
+    <div class="camera-container">
+      <video id="camera-view" autoplay></video>
+      <div class="detection-box"></div>
+    </div>
+
+    <div class="controls">
+      <button id="detect-btn" disabled>Detect Face</button>
+      <button id="save-btn" disabled>Save Data</button>
+      <button id="fetch-btn">Fetch Latest</button>
+    </div>
+
+    <div class="results">
+      <div class="result-item">
+        <span class="result-label">Gender:</span>
+        <span id="gender-result">--</span>
+      </div>
+      <div class="confidence-bar">
+        <div id="gender-confidence" class="confidence-value" style="width: 0%"></div>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Age:</span>
+        <span id="age-result">--</span>
+      </div>
+      <div class="confidence-bar">
+        <div id="age-confidence" class="confidence-value" style="width: 0%"></div>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Timestamp:</span>
+        <span id="timestamp-result">--</span>
+      </div>
+    </div>
   </body>
   <script src="./renderer.js"></script>
 </html>

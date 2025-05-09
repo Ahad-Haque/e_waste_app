@@ -1,3 +1,5 @@
 # python-backend/requirements.txt
 flask
 flask-cors
+opencv-python
+numpy
