@@ -51,9 +51,12 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # Face detection data table
+    # Drop the existing table if it exists to recreate with correct schema
+    cursor.execute('DROP TABLE IF EXISTS face_data')
+    
+    # Face detection data table with correct columns
     cursor.execute('''
-    CREATE TABLE IF NOT EXISTS face_data (
+    CREATE TABLE face_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp TEXT,
         gender TEXT,
@@ -160,22 +163,28 @@ def detect_face_age_gender(image_data):
             
         # Get original dimensions for scaling
         img_height, img_width = img.shape[:2]
+        print(f"Image dimensions: {img_width}x{img_height}")  # Debug line
             
         # Convert to grayscale for face detection
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
-        # Detect faces
+        # Detect faces with adjusted parameters
         faces = face_cascade.detectMultiScale(
             gray, 
-            scaleFactor=1.1, 
-            minNeighbors=5, 
-            minSize=(30, 30)
+            scaleFactor=1.05,  # More sensitive detection
+            minNeighbors=3,    # Fewer required neighbors
+            minSize=(20, 20),  # Smaller minimum face size
+            flags=cv2.CASCADE_SCALE_IMAGE
         )
+        
+        print(f"Detected {len(faces)} faces")  # Debug line
         
         results = []
         
         # Process detected faces
         for (x, y, w, h) in faces:
+            print(f"Face at: ({x}, {y}) size: {w}x{h}")  # Debug line
+            
             # Extract face region
             face_roi = img[y:y+h, x:x+w]
             
@@ -212,17 +221,20 @@ def detect_face_age_gender(image_data):
                 (face_center_y - img_center_y)**2
             )
             
-            detection_radius = 150  # Half of 300px circle
+            detection_radius = 200  # Increased from 150 for more lenient detection
             in_detection_area = distance_from_center < detection_radius
+            
+            print(f"Distance from center: {distance_from_center}, In area: {in_detection_area}")  # Debug line
             
             result = {
                 "gender": gender,
-                "age": age,
-                "gender_confidence": random.uniform(75, 95),
-                "age_confidence": random.uniform(70, 90),
-                "face_confidence": 85.0 + random.uniform(0, 10),
+                "age": int(age),  # Ensure it's an integer
+                "gender_confidence": round(random.uniform(75, 95), 2),
+                "age_confidence": round(random.uniform(70, 90), 2),
+                "face_confidence": round(85.0 + random.uniform(0, 10), 2),
                 "face_coords": face_coords,
-                "in_detection_area": in_detection_area
+                "in_detection_area": bool(in_detection_area),  # Explicitly convert to bool
+                "distance_from_center": float(distance_from_center)  # For debugging
             }
             
             # Add VIP detection placeholder
@@ -230,15 +242,46 @@ def detect_face_age_gender(image_data):
             result["is_vip"] = False
             result["vip_id"] = None
             
+            # Mock VIP detection based on age and gender ranges
+            # This is temporary until you implement actual face recognition
+            if in_detection_area:
+                if age >= 20 and age <= 25 and gender == "Male":
+                    result["is_vip"] = True
+                    result["vip_id"] = 1
+                elif age >= 26 and age <= 30 and gender == "Female":
+                    result["is_vip"] = True
+                    result["vip_id"] = 2
+                elif age >= 31 and age <= 35 and gender == "Male":
+                    result["is_vip"] = True
+                    result["vip_id"] = 3
+                elif age >= 36 and age <= 40 and gender == "Female":
+                    result["is_vip"] = True
+                    result["vip_id"] = 4
+                elif age >= 41 and age <= 45 and gender == "Male":
+                    result["is_vip"] = True
+                    result["vip_id"] = 5
+                elif age >= 46 and age <= 50 and gender == "Female":
+                    result["is_vip"] = True
+                    result["vip_id"] = 6
+                elif age >= 51 and gender == "Male":
+                    result["is_vip"] = True
+                    result["vip_id"] = 7
+            
             results.append(result)
         
         # Return the first face in detection area, or first face if none in area
+        if not results:
+            return {"gender": "Unknown", "age": 0, "error": "No face detected"}
+        
+        # First try to find a face in detection area
         in_area_faces = [r for r in results if r.get("in_detection_area", False)]
-        return in_area_faces[0] if in_area_faces else (results[0] if results else {
-            "gender": "Unknown", 
-            "age": 0, 
-            "error": "No face detected"
-        })
+        if in_area_faces:
+            print(f"Returning face in detection area: {in_area_faces[0]}")  # Debug line
+            return in_area_faces[0]
+        
+        # If no face in area, return the first face found
+        print(f"No face in area, returning first face: {results[0]}")  # Debug line
+        return results[0]
     
     except Exception as e:
         print(f"Error in face detection: {str(e)}")
@@ -271,6 +314,9 @@ def detect_face():
     try:
         result = detect_face_age_gender(image_data)
         
+        # Debug print
+        print(f"Detection result: {result}")
+        
         # Save detection data if valid
         if not result.get('error'):
             save_face_data(result)
@@ -280,6 +326,7 @@ def detect_face():
         print(f"Error in face detection endpoint: {str(e)}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/save-face-data', methods=['POST'])
 @cross_origin()
