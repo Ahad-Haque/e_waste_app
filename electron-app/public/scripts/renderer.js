@@ -1,5 +1,7 @@
 // public/scripts/renderer.js
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("DOM loaded, initializing...");
+
   const videoElement = document.getElementById("camera-view");
   const genderResult = document.getElementById("gender-result");
   const ageResult = document.getElementById("age-result");
@@ -13,46 +15,100 @@ document.addEventListener("DOMContentLoaded", () => {
   let stream = null;
 
   // VIP state management queue
-  let vipQueue = new Map(); // Store flow states for each VIP
+  let vipQueue = new Map();
 
-  // Try to connect to backend first
-  fetch("http://127.0.0.1:5000/test")
-    .then((response) => response.json())
-    .then((data) => {
-      console.log("Backend connection successful:", data);
-      initializeCamera();
-    })
-    .catch((error) => {
-      console.error("Backend connection error:", error);
-      vipStatus.textContent = "Backend connection failed!";
-      // Still initialize camera for development
-      initializeCamera();
-    });
+  // Initialize camera immediately
+  initializeCamera();
 
   function initializeCamera() {
+    console.log("Attempting to initialize camera...");
+    vipStatus.textContent = "Requesting camera access...";
+
+    // Check if browser supports getUserMedia
+    if (!navigator.mediaDevices?.getUserMedia) {
+      console.error("getUserMedia not supported");
+      vipStatus.textContent = "Camera not supported!";
+      return;
+    }
+
+    // Request camera access with different constraints
+    const constraints = {
+      video: {
+        width: { ideal: 1280, min: 640 },
+        height: { ideal: 720, min: 480 },
+        frameRate: { ideal: 30, min: 15 },
+      },
+      audio: false,
+    };
+
     navigator.mediaDevices
-      .getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      })
+      .getUserMedia(constraints)
       .then((mediaStream) => {
+        console.log("Camera access granted!");
         stream = mediaStream;
         videoElement.srcObject = stream;
-        console.log("Camera initialized");
         vipStatus.textContent = "Camera active";
 
-        // Start detection once video is playing
-        videoElement.addEventListener("playing", () => {
+        // Handle video events
+        videoElement.onloadedmetadata = () => {
+          console.log("Video metadata loaded");
+          videoElement.play();
+        };
+
+        videoElement.onplaying = () => {
+          console.log("Video is playing");
+          vipStatus.textContent = "Camera running";
           startFaceDetection();
-        });
+        };
+
+        videoElement.onerror = (e) => {
+          console.error("Video error:", e);
+          vipStatus.textContent = "Video error!";
+        };
       })
       .catch((err) => {
-        console.error("Error accessing webcam:", err);
-        vipStatus.textContent = "Camera error!";
-        genderResult.textContent = "N/A";
-        ageResult.textContent = "N/A";
+        console.error("Initial camera access failed:", err);
+        console.log("Error name:", err.name);
+        console.log("Error message:", err.message);
+
+        // Try with minimal constraints
+        navigator.mediaDevices
+          .getUserMedia({ video: true })
+          .then((fallbackStream) => {
+            console.log("Fallback camera access successful!");
+            stream = fallbackStream;
+            videoElement.srcObject = stream;
+            vipStatus.textContent = "Camera active (basic)";
+
+            videoElement.onplaying = () => {
+              startFaceDetection();
+            };
+          })
+          .catch((fallbackErr) => {
+            console.error("Fallback camera access failed:", fallbackErr);
+            vipStatus.textContent = `Camera denied: ${fallbackErr.message}`;
+
+            // Last resort: try enumerating devices
+            navigator.mediaDevices
+              .enumerateDevices()
+              .then((devices) => {
+                console.log("Available devices:", devices);
+                const videoDevices = devices.filter(
+                  (device) => device.kind === "videoinput"
+                );
+                console.log("Video devices:", videoDevices);
+
+                if (videoDevices.length === 0) {
+                  vipStatus.textContent = "No camera found!";
+                } else {
+                  vipStatus.textContent = `${videoDevices.length} camera(s) found, but access denied`;
+                }
+              })
+              .catch((enumErr) => {
+                console.error("Device enumeration failed:", enumErr);
+                vipStatus.textContent = "Camera system error!";
+              });
+          });
       });
   }
 
@@ -279,4 +335,20 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("Current VIP queue:", Object.fromEntries(vipQueue));
     }
   }, 30000); // Every 30 seconds
+
+  // Add a manual retry button
+  const retryButton = document.createElement("button");
+  retryButton.textContent = "Retry Camera";
+  retryButton.style.position = "absolute";
+  retryButton.style.top = "10px";
+  retryButton.style.right = "10px";
+  retryButton.style.zIndex = "1000";
+  retryButton.onclick = () => {
+    console.log("Manual camera retry...");
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+    initializeCamera();
+  };
+  document.body.appendChild(retryButton);
 });

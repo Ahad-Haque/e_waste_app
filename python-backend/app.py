@@ -1,7 +1,7 @@
 # python-backend/app.py
 
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask import Flask, request, jsonify, make_response
+from flask_cors import CORS, cross_origin
 import os
 import sqlite3
 import cv2
@@ -16,7 +16,21 @@ import threading
 import time
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+
+# Configure CORS properly
+CORS(app, 
+     origins='*',
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'OPTIONS'],
+     expose_headers=['Content-Range', 'X-Content-Range'])
+
+# Add after_request handler to ensure CORS headers
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 # Database and storage paths
 BASE_DIR = os.path.dirname(__file__)
@@ -231,9 +245,23 @@ def detect_face_age_gender(image_data):
         traceback.print_exc()
         return {"gender": "Unknown", "age": 0, "error": str(e)}
 
-@app.route('/detect-face', methods=['POST'])
+@app.route('/test', methods=['GET'])
+@cross_origin()
+def test():
+    """Test endpoint to check backend connectivity"""
+    return jsonify({
+        'message': 'Python backend is running!',
+        'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'database': 'Connected' if os.path.exists(DB_PATH) else 'Not found'
+    })
+
+@app.route('/detect-face', methods=['POST', 'OPTIONS'])
+@cross_origin()
 def detect_face():
     """Face detection endpoint"""
+    if request.method == 'OPTIONS':
+        return make_response('', 204)
+        
     data = request.json
     image_data = data.get('image', '')
     
@@ -254,6 +282,7 @@ def detect_face():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/save-face-data', methods=['POST'])
+@cross_origin()
 def save_face_data_endpoint():
     """Save face detection data"""
     data = request.json
@@ -294,6 +323,7 @@ def save_face_data(data):
         print(f"Error saving face data: {str(e)}")
 
 @app.route('/save-vip-state', methods=['POST'])
+@cross_origin()
 def save_vip_state():
     """Save VIP flow state"""
     try:
@@ -330,6 +360,7 @@ def save_vip_state():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/get-vip-state', methods=['GET'])
+@cross_origin()
 def get_vip_state():
     """Get VIP flow state"""
     try:
@@ -365,6 +396,7 @@ def get_vip_state():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/save-rating', methods=['POST'])
+@cross_origin()
 def save_rating():
     """Save user rating"""
     try:
@@ -395,6 +427,7 @@ def save_rating():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/save-photo', methods=['POST'])
+@cross_origin()
 def save_photo():
     """Save VIP photo"""
     try:
@@ -441,6 +474,7 @@ def save_photo():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/save-waste-disposal', methods=['POST'])
+@cross_origin()
 def save_waste_disposal():
     """Record waste disposal"""
     try:
@@ -476,6 +510,7 @@ def save_waste_disposal():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/get-vip-stats', methods=['GET'])
+@cross_origin()
 def get_vip_stats():
     """Get VIP statistics"""
     try:
@@ -525,6 +560,7 @@ def get_vip_stats():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/fetch-latest', methods=['GET'])
+@cross_origin()
 def fetch_latest():
     """Fetch latest face detection data"""
     try:
@@ -554,16 +590,8 @@ def fetch_latest():
         print(f"Error fetching latest: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/test', methods=['GET'])
-def test():
-    """Test endpoint to check backend connectivity"""
-    return jsonify({
-        'message': 'Python backend is running!',
-        'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'database': 'Connected' if os.path.exists(DB_PATH) else 'Not found'
-    })
-
 @app.route('/health', methods=['GET'])
+@cross_origin()
 def health_check():
     """Health check endpoint"""
     return jsonify({
@@ -584,8 +612,10 @@ if __name__ == '__main__':
     if init_models():
         print("All models initialized successfully!")
         print(f"Starting server on http://127.0.0.1:5000")
-        app.run(host='127.0.0.1', port=5000, debug=True)
+        print("Database path:", DB_PATH)
+        print("Photos directory:", PHOTOS_DIR)
+        app.run(host='127.0.0.1', port=5000, debug=True, threaded=True)
     else:
         print("Failed to initialize models. Some features may not work correctly.")
         print("Starting server anyway...")
-        app.run(host='127.0.0.1', port=5000, debug=True)
+        app.run(host='127.0.0.1', port=5000, debug=True, threaded=True)

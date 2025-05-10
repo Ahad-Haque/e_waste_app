@@ -4,8 +4,9 @@
   "description": "",
   "main": "src/main.js",
   "scripts": {
-    "start": "ELECTRON_DISABLE_SECURITY_WARNINGS=true electron .",
-    "start-win": "set ELECTRON_DISABLE_SECURITY_WARNINGS=true && electron .",
+    "start": "electron . --disable-web-security --disable-features=OutOfBlinkCors",
+    "start-win": "electron . --disable-web-security --disable-features=OutOfBlinkCors",
+    "dev": "electron . --disable-web-security --disable-features=OutOfBlinkCors --inspect",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
