@@ -1,4 +1,4 @@
-// public/scripts/flow-manager.js
+// electron-app\public\scripts\flow-manager.js
 class FlowManager {
   constructor() {
     this.currentFlow = 'ewaste-selection';

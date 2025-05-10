@@ -1,4 +1,4 @@
-// public/scripts/renderer.js
+// electron-app\public\scripts\renderer.js
 document.addEventListener("DOMContentLoaded", () => {
   console.log("DOM loaded, initializing...");
 
