@@ -1,76 +1,78 @@
-// public/renderer.js
-
+// public/scripts/renderer.js
 document.addEventListener("DOMContentLoaded", () => {
-  const infoElement = document.getElementById("info");
   const videoElement = document.getElementById("camera-view");
-  const detectBtn = document.getElementById("detect-btn");
-  const saveBtn = document.getElementById("save-btn");
-  const fetchBtn = document.getElementById("fetch-btn");
   const genderResult = document.getElementById("gender-result");
   const ageResult = document.getElementById("age-result");
-  const timestampResult = document.getElementById("timestamp-result");
-  const genderConfidence = document.getElementById("gender-confidence");
-  const ageConfidence = document.getElementById("age-confidence");
+  const vipAvatar = document.getElementById("vip-avatar");
+  const vipName = document.getElementById("vip-name");
+  const vipStatus = document.getElementById("vip-status");
 
-  const overlayCanvas = document.createElement("canvas");
-  overlayCanvas.classList.add("face-overlay");
-
-  overlayCanvas.style.position = "absolute";
-  overlayCanvas.style.top = "0";
-  overlayCanvas.style.left = "0";
-
-  let currentDetection = null;
-
-  let isLiveDetection = false;
+  let isDetecting = false;
   let detectionInterval = null;
+  let currentVIPState = null;
+  let stream = null;
 
+  // VIP state management queue
+  let vipQueue = new Map(); // Store flow states for each VIP
+
+  // Try to connect to backend first
   fetch("http://127.0.0.1:5000/test")
     .then((response) => response.json())
     .then((data) => {
-      infoElement.textContent = data.message;
       console.log("Backend connection successful:", data);
-      startWebcam();
+      initializeCamera();
     })
     .catch((error) => {
-      infoElement.textContent =
-        "Error connecting to Python backend. Make sure it's running!";
       console.error("Backend connection error:", error);
+      vipStatus.textContent = "Backend connection failed!";
+      // Still initialize camera for development
+      initializeCamera();
     });
 
-  function startWebcam() {
+  function initializeCamera() {
     navigator.mediaDevices
-      .getUserMedia({ video: true })
-      .then((stream) => {
+      .getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      })
+      .then((mediaStream) => {
+        stream = mediaStream;
         videoElement.srcObject = stream;
-        infoElement.textContent =
-          "Camera is active. Position your face in the frame.";
+        console.log("Camera initialized");
+        vipStatus.textContent = "Camera active";
 
-        // Add overlay canvas to container
-        const cameraContainer = videoElement.parentElement;
-        cameraContainer.appendChild(overlayCanvas);
-
-        // Set initial size of overlay canvas
-        overlayCanvas.width = cameraContainer.offsetWidth;
-        overlayCanvas.height = cameraContainer.offsetHeight;
-
-        // Update canvas size when video metadata is loaded
-        videoElement.addEventListener("loadedmetadata", () => {
-          // Start live detection after video is loaded
-          toggleLiveDetection();
+        // Start detection once video is playing
+        videoElement.addEventListener("playing", () => {
+          startFaceDetection();
         });
-
-        // Update canvas size whenever video is resized
-        new ResizeObserver(() => {
-          overlayCanvas.width = videoElement.clientWidth;
-          overlayCanvas.height = videoElement.clientHeight;
-        }).observe(videoElement);
-
-        detectBtn.disabled = false;
       })
       .catch((err) => {
-        infoElement.textContent = "Error accessing webcam: " + err.message;
-        console.error("Webcam error:", err);
+        console.error("Error accessing webcam:", err);
+        vipStatus.textContent = "Camera error!";
+        genderResult.textContent = "N/A";
+        ageResult.textContent = "N/A";
       });
+  }
+
+  function startFaceDetection() {
+    if (isDetecting) return;
+
+    isDetecting = true;
+    detectionInterval = setInterval(() => {
+      if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+        detectFace();
+      }
+    }, 200); // Check every 200ms for better responsiveness
+  }
+
+  function stopFaceDetection() {
+    isDetecting = false;
+    if (detectionInterval) {
+      clearInterval(detectionInterval);
+      detectionInterval = null;
+    }
   }
 
   function captureFrame() {
@@ -79,32 +81,10 @@ document.addEventListener("DOMContentLoaded", () => {
     canvas.height = videoElement.videoHeight;
     const ctx = canvas.getContext("2d");
     ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg");
+    return canvas.toDataURL("image/jpeg", 0.8);
   }
 
-  function toggleLiveDetection() {
-    isLiveDetection = !isLiveDetection;
-
-    if (isLiveDetection) {
-      if (detectBtn.textContent === "Detect Face") {
-        detectBtn.textContent = "Stop Live Detection";
-      }
-
-      detectionInterval = setInterval(() => {
-        if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
-          runFaceDetection();
-        }
-      }, 200);
-    } else {
-      clearInterval(detectionInterval);
-      detectBtn.textContent = "Start Live Detection";
-
-      const ctx = overlayCanvas.getContext("2d");
-      ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    }
-  }
-
-  function runFaceDetection() {
+  function detectFace() {
     const imageData = captureFrame();
 
     fetch("http://127.0.0.1:5000/detect-face", {
@@ -116,153 +96,187 @@ document.addEventListener("DOMContentLoaded", () => {
     })
       .then((response) => response.json())
       .then((data) => {
-        if (data.error) {
-          console.error("Detection error:", data.error);
-          return;
-        }
-
-        currentDetection = data;
-
-        genderResult.textContent = data.gender;
-        ageResult.textContent = data.age;
-
-        if (genderConfidence && ageConfidence) {
-          const genderConfidenceValue = data.gender_confidence || 0;
-          const ageConfidenceValue = data.age_confidence || 0;
-          genderConfidence.style.width = `${genderConfidenceValue}%`;
-          ageConfidence.style.width = `${ageConfidenceValue}%`;
-        }
-
-        drawDetectionOverlay(data);
-
-        saveBtn.disabled = false;
+        updateUI(data);
       })
       .catch((error) => {
         console.error("Detection error:", error);
+        updateUI({ error: "Detection failed" });
       });
   }
 
-  function drawDetectionOverlay(detection) {
-    const ctx = overlayCanvas.getContext("2d");
+  function updateUI(data) {
+    // Always check for new VIPs or changes
+    const detectedVIP = checkIfVIP(data);
 
-    // Clear previous drawings
-    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    if (data.error) {
+      // No face detected
+      genderResult.textContent = "--";
+      ageResult.textContent = "--";
+      vipStatus.textContent = "Looking for face...";
 
-    if (detection.error || !detection.face_coords) {
+      // If no VIP is currently active, show default
+      if (!currentVIPState) {
+        vipName.textContent = "No VIP";
+        vipAvatar.src = "./assets/avatars/default.png";
+      }
       return;
     }
 
-    // Get video dimensions
-    const videoWidth = overlayCanvas.width;
-    const videoHeight = overlayCanvas.height;
+    // Update detection info
+    genderResult.textContent = data.gender || "--";
+    ageResult.textContent = data.age || "--";
 
-    // Get face coordinates as percentages and convert to pixels
-    const faceX = detection.face_coords.x * videoWidth;
-    const faceY = detection.face_coords.y * videoHeight;
-    const faceWidth = detection.face_coords.width * videoWidth;
-    const faceHeight = detection.face_coords.height * videoHeight;
+    // Handle VIP detection and state management
+    if (detectedVIP) {
+      handleVIPDetection(detectedVIP, data);
+    } else {
+      // Non-VIP detected
+      currentVIPState = null;
+      vipName.textContent = "Guest";
+      vipStatus.textContent = "Not registered";
+      vipAvatar.src = "./assets/avatars/default.png";
 
-    // Draw face box with animated effect
-    const currentTime = new Date().getTime();
-    const pulseAmount = Math.sin(currentTime / 300) * 3 + 2; // Pulsating effect
-
-    ctx.strokeStyle =
-      detection.gender === "Male"
-        ? "rgba(0, 150, 255, 0.8)"
-        : "rgba(255, 100, 200, 0.8)";
-    ctx.lineWidth = pulseAmount;
-    ctx.strokeRect(faceX, faceY, faceWidth, faceHeight);
-
-    ctx.shadowColor =
-      detection.gender === "Male"
-        ? "rgba(0, 150, 255, 0.7)"
-        : "rgba(255, 100, 200, 0.7)";
-    ctx.shadowBlur = 15;
-
-    const padding = 10;
-    const boxWidth = 130;
-    const boxHeight = 60;
-
-    let boxX = faceX + faceWidth + padding;
-    if (boxX + boxWidth > videoWidth) {
-      boxX = faceX - boxWidth - padding;
+      // Start fresh flow for guest
+      if (window.flowManager) {
+        window.flowManager.showState("ewaste-selection");
+      }
     }
-
-    const boxY = faceY + faceHeight / 2 - boxHeight / 2;
-
-    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-
-    ctx.shadowBlur = 0;
-    ctx.font = "16px Arial";
-    ctx.fillStyle = "white";
-    ctx.textAlign = "left";
-    ctx.fillText(`Gender: ${detection.gender}`, boxX + 10, boxY + 25);
-    ctx.fillText(`Age: ${detection.age}`, boxX + 10, boxY + 45);
   }
 
-  detectBtn.addEventListener("click", toggleLiveDetection);
+  function handleVIPDetection(vipId, detectionData) {
+    // Check if this is a different VIP than currently active
+    if (currentVIPState !== vipId) {
+      // Save current VIP's state if exists
+      if (currentVIPState && window.flowManager) {
+        vipQueue.set(currentVIPState, {
+          flowState: window.flowManager.currentFlow,
+          selectedBox: window.flowManager.selectedBox,
+          selectedRating: window.flowManager.selectedRating,
+          timestamp: Date.now(),
+        });
+        console.log(`Saved state for VIP ${currentVIPState}`);
+      }
 
-  saveBtn.addEventListener("click", () => {
-    if (!currentDetection) {
-      infoElement.textContent = "No face data to save. Detect a face first.";
-      return;
-    }
+      // Switch to new VIP
+      currentVIPState = vipId;
+      vipName.textContent = `VIP ${vipId}`;
+      vipStatus.textContent = "Active";
+      vipAvatar.src = `./assets/avatars/vip${vipId}.png`;
 
-    fetch("http://127.0.0.1:5000/save-face-data", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        gender: currentDetection.gender,
-        age: currentDetection.age,
-      }),
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        infoElement.textContent = `Data saved successfully!`;
+      // Restore VIP's state if exists
+      if (vipQueue.has(vipId)) {
+        const savedState = vipQueue.get(vipId);
+        console.log(`Restoring state for VIP ${vipId}:`, savedState);
 
-        const now = new Date();
-        timestampResult.textContent = now.toLocaleString();
-      })
-      .catch((error) => {
-        infoElement.textContent = "Error saving to database";
-        console.error("Database save error:", error);
-      });
-  });
+        if (window.flowManager) {
+          // Restore flow state
+          window.flowManager.currentFlow = savedState.flowState;
+          window.flowManager.selectedBox = savedState.selectedBox;
+          window.flowManager.selectedRating = savedState.selectedRating;
+          window.flowManager.showState(savedState.flowState);
 
-  fetchBtn.addEventListener("click", () => {
-    fetch("http://127.0.0.1:5000/fetch-latest")
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.message === "No data found") {
-          infoElement.textContent = "No previous data found in database";
-        } else {
-          infoElement.textContent = "Latest data retrieved!";
-          genderResult.textContent = data.gender;
-          ageResult.textContent = data.age;
-          timestampResult.textContent = data.timestamp;
-
-          // Reset confidence bars if they exist
-          if (genderConfidence && ageConfidence) {
-            genderConfidence.style.width = "0%";
-            ageConfidence.style.width = "0%";
+          // If VIP was at box instruction, they're returning
+          if (savedState.flowState === "box-instruction") {
+            // Give them a moment to return, then show thank you
+            setTimeout(() => {
+              window.flowManager.showThankYou();
+            }, 1000);
           }
-
-          // Update current detection
-          currentDetection = {
-            gender: data.gender,
-            age: data.age,
-          };
-
-          // Enable save button
-          saveBtn.disabled = false;
         }
+      } else {
+        // New VIP - start fresh flow
+        console.log(`New VIP ${vipId} detected`);
+        if (window.flowManager) {
+          window.flowManager.showState("ewaste-selection");
+        }
+      }
+    } else {
+      // Same VIP - just update status
+      vipStatus.textContent = "Active";
+    }
+  }
+
+  function checkIfVIP(data) {
+    // Placeholder VIP detection logic
+    // In a real app, this would use proper face recognition
+    if (!data || data.error) return false;
+
+    const age = parseInt(data.age);
+    const gender = data.gender;
+
+    // Mock VIP detection based on age and gender
+    // Replace this with actual face recognition logic
+    if (age >= 20 && age <= 25 && gender === "Male") return 1;
+    if (age >= 26 && age <= 30 && gender === "Female") return 2;
+    if (age >= 31 && age <= 35 && gender === "Male") return 3;
+    if (age >= 36 && age <= 40 && gender === "Female") return 4;
+    if (age >= 41 && age <= 45 && gender === "Male") return 5;
+    if (age >= 46 && age <= 50 && gender === "Female") return 6;
+    if (age >= 51 && gender === "Male") return 7;
+
+    return false; // Not a VIP
+  }
+
+  // Store reference for flow manager integration
+  window.cameraManager = {
+    takePhoto: function () {
+      // Capture photo for 5-star rating flow
+      const photoData = captureFrame();
+
+      // Save to database (implement later)
+      fetch("http://127.0.0.1:5000/save-photo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          photo: photoData,
+          vipId: currentVIPState,
+          timestamp: new Date().toISOString(),
+        }),
       })
-      .catch((error) => {
-        infoElement.textContent = "Error fetching from database";
-        console.error("Database fetch error:", error);
-      });
+        .then((response) => response.json())
+        .then((data) => {
+          console.log("Photo saved:", data);
+        })
+        .catch((error) => {
+          console.error("Error saving photo:", error);
+        });
+
+      return photoData;
+    },
+
+    getCurrentVIP: function () {
+      return currentVIPState;
+    },
+
+    clearVIPState: function (vipId) {
+      if (vipQueue.has(vipId)) {
+        vipQueue.delete(vipId);
+      }
+      if (currentVIPState === vipId) {
+        currentVIPState = null;
+      }
+    },
+  };
+
+  // Clean up when window closes
+  window.addEventListener("beforeunload", () => {
+    stopFaceDetection();
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
   });
+
+  // Error handler for avatar images
+  vipAvatar.onerror = function () {
+    this.src = "./assets/avatars/default.png";
+  };
+
+  // Log VIP queue periodically (for debugging)
+  setInterval(() => {
+    if (vipQueue.size > 0) {
+      console.log("Current VIP queue:", Object.fromEntries(vipQueue));
+    }
+  }, 30000); // Every 30 seconds
 });

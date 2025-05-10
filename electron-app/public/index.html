@@ -5,145 +5,118 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; connect-src 'self' http://127.0.0.1:5000; img-src 'self' data: blob:"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:5000; img-src 'self' data: blob:; media-src 'self' data:;"
     />
-    <meta
-      http-equiv="X-Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; connect-src 'self' http://127.0.0.1:5000; img-src 'self' data: blob:"
-    />
-    <title>Face Detection with Age and Gender</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        padding: 20px;
-        text-align: center;
-        max-width: 800px;
-        margin: 0 auto;
-        background-color: #f5f5f5;
-      }
-      h1 {
-        color: #333;
-        margin-bottom: 20px;
-      }
-      .camera-container {
-        position: relative;
-        width: 500px;
-        height: 375px;
-        border: 2px solid #4caf50;
-        margin: 20px auto;
-        overflow: hidden;
-        border-radius: 8px;
-        background-color: #000;
-      }
-      #camera-view {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-      .face-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-      }
-      .controls {
-        display: flex;
-        justify-content: center;
-        gap: 10px;
-        margin: 20px 0;
-      }
-      button {
-        padding: 10px 15px;
-        font-size: 16px;
-        background-color: #4caf50;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-      }
-      button:hover {
-        background-color: #45a049;
-      }
-      button:disabled {
-        background-color: #cccccc;
-        cursor: not-allowed;
-      }
-      #info {
-        margin: 10px 0;
-        color: #666;
-        font-style: italic;
-      }
-      .results {
-        background-color: #fff;
-        padding: 15px;
-        border-radius: 8px;
-        text-align: left;
-        max-width: 400px;
-        margin: 0 auto;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      }
-      .result-item {
-        margin: 8px 0;
-        display: flex;
-        justify-content: space-between;
-      }
-      .result-label {
-        font-weight: bold;
-        color: #333;
-      }
-      .confidence-bar {
-        height: 10px;
-        background-color: #ddd;
-        border-radius: 5px;
-        margin-top: 5px;
-        overflow: hidden;
-      }
-      .confidence-value {
-        height: 100%;
-        background-color: #4caf50;
-        border-radius: 5px;
-        transition: width 0.5s ease-in-out;
-      }
-    </style>
+    <title>E-Waste Disposal App</title>
+    <link rel="stylesheet" href="./styles/main.css">
   </head>
   <body>
-    <h1>Face Detection with Age and Gender</h1>
-    <p id="info">Connecting to Python backend...</p>
+    <div class="app-container">
+      <!-- Column 1: Application Flow -->
+      <div class="column column-1">
+        <div class="flow-container">
+          <!-- Initial state: E-waste selection -->
+          <div class="flow-state" id="ewaste-selection">
+            <h2>Select E waste to dispose</h2>
+            <div class="waste-buttons">
+              <button class="waste-btn" data-box="04">Battery waste</button>
+              <button class="waste-btn" data-box="02">Circuits waste</button>
+              <button class="waste-btn" data-box="06">Plastic waste</button>
+              <button class="waste-btn" data-box="08">Metal waste</button>
+            </div>
+          </div>
 
-    <div class="camera-container">
-      <video id="camera-view" autoplay></video>
-      <!-- The overlay canvas will be added by JavaScript -->
+          <!-- Box instruction state -->
+          <div class="flow-state hidden" id="box-instruction">
+            <h2>Proceed to box no: <span id="box-number">04</span></h2>
+          </div>
+
+          <!-- Thank you state -->
+          <div class="flow-state hidden" id="thank-you">
+            <h2>Thank you for disposing e-waste responsibly!</h2>
+          </div>
+
+          <!-- Learn more state -->
+          <div class="flow-state hidden" id="learn-more">
+            <h2>Learn more about E waste</h2>
+            <div class="yes-no-buttons">
+              <button class="action-btn" id="learn-yes">Yes</button>
+              <button class="action-btn" id="learn-no">No</button>
+            </div>
+          </div>
+
+          <!-- Game state -->
+          <div class="flow-state hidden" id="game-state">
+            <h2>Flappy Bird Game</h2>
+            <div class="game-placeholder">
+              <canvas id="game-canvas" width="300" height="400"></canvas>
+            </div>
+            <button class="action-btn" id="feedback-screen-btn">Feedback Screen</button>
+          </div>
+
+          <!-- Feedback state -->
+          <div class="flow-state hidden" id="feedback-state">
+            <h2>Rate your experience</h2>
+            <div class="star-rating">
+              <span class="star" data-rating="1">★</span>
+              <span class="star" data-rating="2">★</span>
+              <span class="star" data-rating="3">★</span>
+              <span class="star" data-rating="4">★</span>
+              <span class="star" data-rating="5">★</span>
+            </div>
+            <button class="action-btn" id="submit-rating">Submit Rating</button>
+          </div>
+
+          <!-- Photo state -->
+          <div class="flow-state hidden" id="photo-state">
+            <h2>Would you like to take a picture with us?</h2>
+            <div class="yes-no-buttons">
+              <button class="action-btn" id="photo-yes">Yes</button>
+              <button class="action-btn" id="photo-no">No</button>
+            </div>
+          </div>
+
+          <!-- Countdown state -->
+          <div class="flow-state hidden" id="countdown-state">
+            <h1 class="countdown-timer" id="countdown-timer">3</h1>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 2: Camera View -->
+      <div class="column column-2">
+        <div class="camera-container">
+          <video id="camera-view" autoplay></video>
+          <div class="detection-circle">
+            <div class="detection-info">
+              <div class="info-item">
+                <span class="label">Gender:</span>
+                <span id="gender-result">--</span>
+              </div>
+              <div class="info-item">
+                <span class="label">Age:</span>
+                <span id="age-result">--</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 3: Avatar/Animation -->
+      <div class="column column-3">
+        <div class="avatar-container">
+          <div class="avatar-placeholder">
+            <img src="./assets/avatars/default.png" alt="Avatar" id="vip-avatar">
+          </div>
+          <div class="vip-info">
+            <p id="vip-name">Default</p>
+            <p id="vip-status">Waiting...</p>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="controls">
-      <button id="detect-btn">Start Live Detection</button>
-      <button id="save-btn" disabled>Save Data</button>
-      <button id="fetch-btn">Fetch Latest</button>
-    </div>
-
-    <div class="results">
-      <div class="result-item">
-        <span class="result-label">Gender:</span>
-        <span id="gender-result">--</span>
-      </div>
-      <div class="confidence-bar">
-        <div id="gender-confidence" class="confidence-value" style="width: 0%"></div>
-      </div>
-      <div class="result-item">
-        <span class="result-label">Age:</span>
-        <span id="age-result">--</span>
-      </div>
-      <div class="confidence-bar">
-        <div id="age-confidence" class="confidence-value" style="width: 0%"></div>
-      </div>
-      <div class="result-item">
-        <span class="result-label">Timestamp:</span>
-        <span id="timestamp-result">--</span>
-      </div>
-    </div>
+    <script src="./scripts/flow-manager.js"></script>
+    <script src="./scripts/renderer.js"></script>
   </body>
-  <script src="./renderer.js"></script>
 </html>
